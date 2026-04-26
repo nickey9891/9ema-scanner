@@ -1,0 +1,101 @@
+//@version=6
+// ============================================================================
+// SMB 9 EMA Continuation - SCREENER VERSION
+// ============================================================================
+// Use this in TradingView's Pine Screener (Products menu > Pine Screener).
+// Add it to a watchlist, set timeframe to 1m, and it will return matches.
+//
+// IMPORTANT: Pine Screener requires Pine v6 and the request.security model
+// shown below. Run during US market hours for live scanning.
+// ============================================================================
+
+//@version=6
+indicator("SMB 9EMA Screener", shorttitle="SMB 9EMA Scan")
+
+// ----- Inputs -----
+emaFastLen   = input.int(9,  "Fast EMA",   minval=2)
+emaSlowLen   = input.int(20, "Slow EMA",   minval=2)
+relVolLen    = input.int(20, "RelVol Len", minval=5)
+relVolMult   = input.float(2.0, "RelVol Min", minval=1.0, step=0.1)
+pullbackBars = input.int(5,  "Pullback Window", minval=1, maxval=10)
+minPrice     = input.float(5.0,  "Min Price",  minval=0.01)
+minDailyVol  = input.int(500000, "Min Avg Daily Vol (shares)", minval=0)
+
+// ----- Daily liquidity floor -----
+// Pull daily average volume to filter out illiquid names
+dailyVolAvg = request.security(syminfo.tickerid, "D", ta.sma(volume, 20), lookahead=barmerge.lookahead_off)
+liquidEnough = dailyVolAvg >= minDailyVol and close >= minPrice
+
+// ----- Core calcs -----
+emaFast = ta.ema(close, emaFastLen)
+emaSlow = ta.ema(close, emaSlowLen)
+vwapVal = ta.vwap(hlc3)
+avgVol  = ta.sma(volume, relVolLen)
+relVol  = volume / avgVol
+
+// ----- Time filter (active hours only) -----
+inMorning   = not na(time(timeframe.period, "0930-1100", "America/New_York"))
+inAfternoon = not na(time(timeframe.period, "1400-1545", "America/New_York"))
+timeOK = inMorning or inAfternoon
+
+// ----- Pullback tracking -----
+pullbackLong  = low  <= emaFast and close >= emaFast * 0.998
+pullbackShort = high >= emaFast and close <= emaFast * 1.002
+
+var int   lastPbLongBar  = na
+var int   lastPbShortBar = na
+var float lastPbLowVol   = na
+var float lastPbHighVol  = na
+var float lastPbLow      = na
+var float lastPbHigh     = na
+
+if pullbackLong
+    lastPbLongBar  := bar_index
+    lastPbLowVol   := volume
+    lastPbLow      := low
+if pullbackShort
+    lastPbShortBar := bar_index
+    lastPbHighVol  := volume
+    lastPbHigh     := high
+
+barsLong  = na(lastPbLongBar)  ? na : bar_index - lastPbLongBar
+barsShort = na(lastPbShortBar) ? na : bar_index - lastPbShortBar
+
+// ----- Reclaim triggers -----
+reclaimLong  = close > emaFast and close > high[1]
+reclaimShort = close < emaFast and close < low[1]
+
+// ----- Filters -----
+trendUp   = emaFast > emaSlow
+trendDown = emaFast < emaSlow
+vwapUp    = close > vwapVal
+vwapDown  = close < vwapVal
+relVolOK  = relVol >= relVolMult
+
+volPatternLong  = not na(lastPbLowVol)  and lastPbLowVol  < avgVol and volume > avgVol
+volPatternShort = not na(lastPbHighVol) and lastPbHighVol < avgVol and volume > avgVol
+
+withinWindowLong  = not na(barsLong)  and barsLong  <= pullbackBars and barsLong  > 0
+withinWindowShort = not na(barsShort) and barsShort <= pullbackBars and barsShort > 0
+
+longSignal  = liquidEnough and reclaimLong  and withinWindowLong  and trendUp   and vwapUp   and relVolOK and volPatternLong  and timeOK
+shortSignal = liquidEnough and reclaimShort and withinWindowShort and trendDown and vwapDown and relVolOK and volPatternShort and timeOK
+
+// ----- Screener output columns -----
+// Pine Screener will display these as sortable columns
+signalDirection = longSignal ? 1 : shortSignal ? -1 : 0
+stopLevel       = longSignal ? lastPbLow : shortSignal ? lastPbHigh : na
+riskPct         = na(stopLevel) ? na : math.abs(close - stopLevel) / close * 100
+
+plot(signalDirection, "Signal (1=Long, -1=Short, 0=None)", display=display.data_window)
+plot(relVol,          "RelVol",                            display=display.data_window)
+plot(close,           "Price",                             display=display.data_window)
+plot(stopLevel,       "Stop Level",                        display=display.data_window)
+plot(riskPct,         "Risk %",                            display=display.data_window)
+plot(emaFast,         "9 EMA",                             display=display.data_window)
+plot(vwapVal,         "VWAP",                              display=display.data_window)
+plot(dailyVolAvg,     "Avg Daily Vol",                     display=display.data_window)
+
+// Visual marker for chart preview within screener
+plotshape(longSignal,  style=shape.triangleup,   location=location.belowbar, color=color.green, size=size.small)
+plotshape(shortSignal, style=shape.triangledown, location=location.abovebar, color=color.red,   size=size.small)

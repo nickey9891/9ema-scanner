@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SMB 9EMA Continuation Scanner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Major+Mono+Display&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-primary:   #0a0e0a;
+  --bg-secondary: #11161a;
+  --bg-tertiary:  #1a2128;
+  --bg-elev:      #232c35;
+  --border:       #2d3742;
+  --border-bright:#3d4a57;
+  --text-primary: #e8edf2;
+  --text-muted:   #7a8794;
+  --text-dim:     #4a5560;
+  --long:         #00ff9d;
+  --short:        #ff3860;
+  --warn:         #ffb800;
+  --info:         #4dabf7;
+  --accent:       #00ff9d;
+  --grid-line:    rgba(255, 255, 255, 0.04);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.4;
+  height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 40px 40px;
+  display: grid;
+  grid-template-rows: 56px 1fr 32px;
+}
+
+/* ============ HEADER ============ */
+header {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 24px;
+}
+
+.logo {
+  font-family: 'Major Mono Display', monospace;
+  font-size: 18px;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  text-transform: lowercase;
+}
+.logo::after {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  margin-left: 8px;
+  animation: pulse 2s ease-in-out infinite;
+  vertical-align: middle;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--accent); }
+  50%      { opacity: 0.3; box-shadow: 0 0 0 var(--accent); }
+}
+
+.session-clock {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-left: auto;
+  font-size: 11px;
+}
+.clock-item { display: flex; flex-direction: column; align-items: flex-end; }
+.clock-label { color: var(--text-dim); text-transform: uppercase; font-size: 9px; letter-spacing: 0.1em; }
+.clock-value { color: var(--text-primary); font-weight: 500; }
+
+.session-badge {
+  padding: 4px 10px;
+  border: 1px solid var(--border-bright);
+  border-radius: 2px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+}
+.session-badge.active   { border-color: var(--long);  color: var(--long);  background: rgba(0,255,157,0.06); }
+.session-badge.midday   { border-color: var(--warn);  color: var(--warn);  background: rgba(255,184,0,0.06); }
+.session-badge.closed   { border-color: var(--text-dim); color: var(--text-dim); }
+
+/* ============ MAIN LAYOUT ============ */
+main {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  overflow: hidden;
+}
+
+/* ============ SIDEBAR (CONFIG) ============ */
+aside {
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 20px;
+}
+
+aside h2 {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+aside h2:not(:first-child) { margin-top: 28px; }
+
+.field {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 12px;
+}
+.field label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+}
+.field input, .field select, .field textarea {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 7px 9px;
+  border-radius: 2px;
+  outline: none;
+  transition: border-color 0.1s;
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  border-color: var(--accent);
+}
+.field textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-size: 11px;
+}
+.field input[type="number"] { width: 100%; }
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.checkbox-row input[type="checkbox"] {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border-bright);
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  position: relative;
+  border-radius: 2px;
+}
+.checkbox-row input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.checkbox-row input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: -2px; left: 1px;
+  color: var(--bg-primary);
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.btn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-bright);
+  color: var(--text-primary);
+  padding: 9px 12px;
+  font-family: inherit;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.1s;
+  width: 100%;
+  font-weight: 500;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn-primary { background: var(--accent); color: var(--bg-primary); border-color: var(--accent); font-weight: 700; }
+.btn-primary:hover { background: transparent; color: var(--accent); }
+.btn-danger { border-color: var(--short); color: var(--short); }
+.btn-danger:hover { background: var(--short); color: var(--bg-primary); }
+
+.btn + .btn { margin-top: 8px; }
+
+/* ============ CONTENT AREA ============ */
+.content {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+}
+
+.stats-bar {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 1px;
+  background-image: linear-gradient(to right, transparent, transparent);
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 16px;
+  border-right: 1px solid var(--border);
+}
+.stat:last-child { border-right: none; }
+.stat-label {
+  font-size: 9px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.stat-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1;
+}
+.stat-value.long  { color: var(--long); }
+.stat-value.short { color: var(--short); }
+.stat-value.warn  { color: var(--warn); }
+
+/* ============ TABLE ============ */
+.table-wrap {
+  overflow-y: auto;
+  overflow-x: auto;
+  padding: 0 20px 20px;
+}
+
+table.scanner {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 12px;
+}
+
+table.scanner thead {
+  position: sticky;
+  top: 0;
+  background: var(--bg-primary);
+  z-index: 10;
+}
+table.scanner th {
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+table.scanner th:hover { color: var(--accent); }
+table.scanner th.sorted::after {
+  content: ' ↓';
+  color: var(--accent);
+}
+table.scanner th.sorted.asc::after { content: ' ↑'; }
+table.scanner th.numeric { text-align: right; }
+table.scanner td {
+  padding: 11px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+table.scanner td.numeric { text-align: right; font-variant-numeric: tabular-nums; }
+table.scanner tr:hover { background: var(--bg-tertiary); }
+table.scanner tr.signal-long  { background: rgba(0,255,157,0.04); }
+table.scanner tr.signal-long:hover { background: rgba(0,255,157,0.08); }
+table.scanner tr.signal-short { background: rgba(255,56,96,0.04); }
+table.scanner tr.signal-short:hover { background: rgba(255,56,96,0.08); }
+
+.ticker {
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+.ticker a {
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: color 0.1s;
+}
+.ticker a:hover { color: var(--accent); }
+
+.signal-cell {
+  display: inline-block;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  border-radius: 2px;
+  border: 1px solid;
+}
+.signal-cell.long  { color: var(--long);  border-color: var(--long);  background: rgba(0,255,157,0.1); }
+.signal-cell.short { color: var(--short); border-color: var(--short); background: rgba(255,56,96,0.1); }
+.signal-cell.watch { color: var(--warn);  border-color: var(--warn);  background: rgba(255,184,0,0.1); }
+.signal-cell.none  { color: var(--text-dim); border-color: var(--border); }
+
+.relvol-bar {
+  display: inline-block;
+  vertical-align: middle;
+  width: 50px;
+  height: 4px;
+  background: var(--bg-tertiary);
+  position: relative;
+  margin-right: 6px;
+  border-radius: 1px;
+  overflow: hidden;
+}
+.relvol-bar::after {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  background: var(--info);
+  width: var(--w, 0%);
+}
+.relvol-bar.hot::after  { background: var(--long); }
+.relvol-bar.cold::after { background: var(--text-dim); }
+
+.check  { color: var(--long); }
+.cross  { color: var(--short); opacity: 0.7; }
+.dash   { color: var(--text-dim); }
+
+/* ============ EMPTY STATE ============ */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.empty .big {
+  font-family: 'Major Mono Display', monospace;
+  font-size: 32px;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+  letter-spacing: 0.05em;
+}
+.empty code {
+  display: inline-block;
+  padding: 2px 6px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--accent);
+  margin: 0 2px;
+  font-size: 11px;
+}
+
+/* ============ FOOTER / STATUS BAR ============ */
+footer {
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 20px;
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+.status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 6px;
+  background: var(--text-dim);
+}
+.status-dot.ok    { background: var(--long); box-shadow: 0 0 4px var(--long); }
+.status-dot.warn  { background: var(--warn); }
+.status-dot.error { background: var(--short); }
+
+footer .right { margin-left: auto; }
+
+/* ============ MODAL ============ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal-backdrop.show { display: flex; }
+.modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-bright);
+  border-radius: 4px;
+  width: 480px;
+  max-width: 90vw;
+  padding: 24px;
+}
+.modal h3 {
+  font-size: 14px;
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+.modal p {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+.modal-buttons { display: flex; gap: 8px; margin-top: 16px; }
+
+/* ============ TOAST ============ */
+.toast {
+  position: fixed;
+  bottom: 50px;
+  right: 20px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-bright);
+  border-left: 3px solid var(--accent);
+  padding: 12px 16px;
+  font-size: 11px;
+  border-radius: 2px;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.2s;
+  pointer-events: none;
+  max-width: 300px;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.error { border-left-color: var(--short); }
+.toast.success { border-left-color: var(--long); }
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">9ema.scanner</div>
+
+  <div class="session-clock">
+    <div class="clock-item">
+      <span class="clock-label">ET</span>
+      <span class="clock-value" id="clock-et">—</span>
+    </div>
+    <div class="clock-item">
+      <span class="clock-label">Local</span>
+      <span class="clock-value" id="clock-local">—</span>
+    </div>
+    <span class="session-badge closed" id="session-status">CLOSED</span>
+  </div>
+</header>
+
+<main>
+  <aside>
+    <h2>Connection</h2>
+    <div class="field">
+      <label>Finnhub API Key</label>
+      <input type="password" id="api-key" placeholder="d2hs8j1r01q..." autocomplete="off">
+    </div>
+    <button class="btn" id="btn-save-key">Save Key (browser)</button>
+
+    <h2>Watchlist</h2>
+    <div class="field">
+      <label>Tickers (comma-separated, max 15)</label>
+      <textarea id="watchlist" placeholder="AAPL, TSLA, NVDA, AMD, SMCI, COIN, MSTR, PLTR, GME, AMC"></textarea>
+    </div>
+
+    <h2>Filters</h2>
+    <div class="field">
+      <label>RelVol Min</label>
+      <input type="number" id="relvol-min" value="2.0" step="0.1" min="1">
+    </div>
+    <div class="field">
+      <label>Min Price ($)</label>
+      <input type="number" id="min-price" value="5" step="1" min="0">
+    </div>
+    <div class="field">
+      <label>Pullback Window (bars)</label>
+      <input type="number" id="pullback-bars" value="5" step="1" min="1" max="10">
+    </div>
+
+    <label class="checkbox-row">
+      <input type="checkbox" id="filter-vwap" checked>
+      Require VWAP bias
+    </label>
+    <label class="checkbox-row">
+      <input type="checkbox" id="filter-trend" checked>
+      Require 9>20 EMA trend
+    </label>
+    <label class="checkbox-row">
+      <input type="checkbox" id="filter-time" checked>
+      Active hours only
+    </label>
+    <label class="checkbox-row">
+      <input type="checkbox" id="alert-sound" checked>
+      Alert sound on signal
+    </label>
+
+    <h2>Refresh</h2>
+    <div class="field">
+      <label>Interval (seconds)</label>
+      <select id="refresh-interval">
+        <option value="30">30s</option>
+        <option value="60" selected>60s (recommended)</option>
+        <option value="120">2 min</option>
+        <option value="300">5 min</option>
+        <option value="0">Manual only</option>
+      </select>
+    </div>
+
+    <button class="btn btn-primary" id="btn-scan">Run Scan</button>
+    <button class="btn btn-danger" id="btn-stop" style="display:none;">Stop Auto-Refresh</button>
+  </aside>
+
+  <div class="content">
+    <div class="stats-bar">
+      <div class="stat">
+        <span class="stat-label">Watchlist</span>
+        <span class="stat-value" id="stat-total">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Long Signals</span>
+        <span class="stat-value long" id="stat-longs">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Short Signals</span>
+        <span class="stat-value short" id="stat-shorts">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">In Setup</span>
+        <span class="stat-value warn" id="stat-watch">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">API Calls</span>
+        <span class="stat-value" id="stat-calls">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Last Scan</span>
+        <span class="stat-value" id="stat-last" style="font-size:14px;">—</span>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div id="empty-state" class="empty">
+        <div class="big">no signal</div>
+        <p>Add your Finnhub API key, populate the watchlist, and click <code>Run Scan</code> to begin.</p>
+        <p style="margin-top:16px;">Tickers in setup zone (pulled back to 9 EMA, awaiting reclaim) appear in <span style="color:var(--warn)">amber</span>. Confirmed entries appear in <span style="color:var(--long)">lime</span> (long) or <span style="color:var(--short)">red</span> (short).</p>
+      </div>
+
+      <table class="scanner" id="scanner-table" style="display:none;">
+        <thead>
+          <tr>
+            <th data-sort="signal" class="sorted">Signal</th>
+            <th data-sort="ticker">Ticker</th>
+            <th data-sort="price"  class="numeric">Price</th>
+            <th data-sort="change" class="numeric">% Chg</th>
+            <th data-sort="relvol" class="numeric">RelVol</th>
+            <th data-sort="ema9"   class="numeric">9 EMA</th>
+            <th data-sort="vwap"   class="numeric">VWAP</th>
+            <th data-sort="dist"   class="numeric">Δ to 9EMA</th>
+            <th>Trend</th>
+            <th>VWAP</th>
+            <th>Vol Pat.</th>
+            <th data-sort="stop"   class="numeric">Stop</th>
+            <th data-sort="risk"   class="numeric">Risk%</th>
+            <th data-sort="pbBars" class="numeric">PB Ago</th>
+          </tr>
+        </thead>
+        <tbody id="scanner-body"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <span><span class="status-dot" id="status-dot"></span><span id="status-text">Disconnected</span></span>
+  <span id="rate-info">Rate limit: 60/min</span>
+  <span class="right">SMB 9 EMA Continuation Scanner · Finnhub data feed</span>
+</footer>
+
+<div class="modal-backdrop" id="modal-key">
+  <div class="modal">
+    <h3>API Key Required</h3>
+    <p>This dashboard pulls live market data from <strong>Finnhub.io</strong>. Get a free key at <span style="color:var(--accent)">finnhub.io/register</span> — it takes 60 seconds.</p>
+    <p>Your key is stored in browser localStorage only. It never leaves your machine.</p>
+    <div class="field" style="margin-top:12px;">
+      <label>Paste your Finnhub key</label>
+      <input type="password" id="modal-key-input" placeholder="d2hs8j1r01q...">
+    </div>
+    <div class="modal-buttons">
+      <button class="btn btn-primary" id="modal-save-key">Save & Continue</button>
+      <button class="btn" id="modal-close-key">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================================
+// SMB 9 EMA Continuation Scanner — Finnhub-powered dashboard
+// ============================================================================
+
+const STORAGE_KEY = 'smb9ema_config_v1';
+
+const state = {
+  apiKey: null,
+  config: {
+    watchlist: 'AAPL,TSLA,NVDA,AMD,SMCI,COIN,MSTR,PLTR,META,GOOGL',
+    relvolMin: 2.0,
+    minPrice: 5,
+    pullbackBars: 5,
+    filterVwap: true,
+    filterTrend: true,
+    filterTime: true,
+    alertSound: true,
+    refreshInterval: 60,
+  },
+  results: [],
+  apiCalls: 0,
+  apiCallsThisMinute: 0,
+  callTimestamps: [],
+  refreshTimer: null,
+  lastSignals: new Set(),
+  sortBy: 'signal',
+  sortDir: 'desc',
+  scanning: false,
+};
+
+// ----- Persistence -----
+function loadConfig() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    if (stored.apiKey) state.apiKey = stored.apiKey;
+    if (stored.config) Object.assign(state.config, stored.config);
+  } catch (e) { /* ignore */ }
+  applyConfigToUI();
+}
+
+function saveConfig() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    apiKey: state.apiKey,
+    config: state.config,
+  }));
+}
+
+function applyConfigToUI() {
+  if (state.apiKey) document.getElementById('api-key').value = state.apiKey;
+  document.getElementById('watchlist').value     = state.config.watchlist;
+  document.getElementById('relvol-min').value    = state.config.relvolMin;
+  document.getElementById('min-price').value     = state.config.minPrice;
+  document.getElementById('pullback-bars').value = state.config.pullbackBars;
+  document.getElementById('filter-vwap').checked  = state.config.filterVwap;
+  document.getElementById('filter-trend').checked = state.config.filterTrend;
+  document.getElementById('filter-time').checked  = state.config.filterTime;
+  document.getElementById('alert-sound').checked  = state.config.alertSound;
+  document.getElementById('refresh-interval').value = state.config.refreshInterval;
+}
+
+function readConfigFromUI() {
+  state.config.watchlist     = document.getElementById('watchlist').value.trim();
+  state.config.relvolMin     = parseFloat(document.getElementById('relvol-min').value) || 2.0;
+  state.config.minPrice      = parseFloat(document.getElementById('min-price').value) || 5;
+  state.config.pullbackBars  = parseInt(document.getElementById('pullback-bars').value) || 5;
+  state.config.filterVwap    = document.getElementById('filter-vwap').checked;
+  state.config.filterTrend   = document.getElementById('filter-trend').checked;
+  state.config.filterTime    = document.getElementById('filter-time').checked;
+  state.config.alertSound    = document.getElementById('alert-sound').checked;
+  state.config.refreshInterval = parseInt(document.getElementById('refresh-interval').value) || 0;
+  saveConfig();
+}
+
+// ----- UI helpers -----
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + type;
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+function setStatus(text, type = '') {
+  document.getElementById('status-text').textContent = text;
+  const dot = document.getElementById('status-dot');
+  dot.className = 'status-dot ' + type;
+}
+
+// ----- Time / Session -----
+function getETTime() {
+  const now = new Date();
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  });
+  return fmt.format(now);
+}
+
+function getETDateParts() {
+  // returns {hour, minute, dayOfWeek (0=Sun..6=Sat)} in ET
+  const now = new Date();
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+  const parts = fmt.formatToParts(now);
+  const get = (t) => parts.find(p => p.type === t)?.value;
+  const hour = parseInt(get('hour'));
+  const minute = parseInt(get('minute'));
+  const wd = get('weekday');
+  const dayMap = { Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6 };
+  return { hour, minute, dayOfWeek: dayMap[wd] };
+}
+
+function getSessionState() {
+  const { hour, minute, dayOfWeek } = getETDateParts();
+  if (dayOfWeek === 0 || dayOfWeek === 6) return 'closed';
+
+  const minutesIntoDay = hour * 60 + minute;
+  const open    = 9 * 60 + 30;
+  const morningEnd = 11 * 60;
+  const afternoonStart = 14 * 60;
+  const afternoonEnd   = 15 * 60 + 45;
+  const close   = 16 * 60;
+
+  if (minutesIntoDay < open) return 'premarket';
+  if (minutesIntoDay >= close) return 'closed';
+  if (minutesIntoDay >= open && minutesIntoDay < morningEnd) return 'active-morning';
+  if (minutesIntoDay >= afternoonStart && minutesIntoDay < afternoonEnd) return 'active-afternoon';
+  if (minutesIntoDay >= morningEnd && minutesIntoDay < afternoonStart) return 'midday';
+  return 'late';  // 15:45-16:00 - signals off but market open
+}
+
+function isInActiveHours() {
+  const s = getSessionState();
+  return s === 'active-morning' || s === 'active-afternoon';
+}
+
+function updateClocks() {
+  document.getElementById('clock-et').textContent = getETTime();
+  document.getElementById('clock-local').textContent = new Date().toLocaleTimeString('en-US', { hour12: false });
+
+  const session = getSessionState();
+  const badge = document.getElementById('session-status');
+  badge.className = 'session-badge';
+  switch (session) {
+    case 'active-morning':   badge.classList.add('active'); badge.textContent = 'AM SESSION'; break;
+    case 'active-afternoon': badge.classList.add('active'); badge.textContent = 'PM SESSION'; break;
+    case 'midday':           badge.classList.add('midday'); badge.textContent = 'MIDDAY (NO SIGNALS)'; break;
+    case 'premarket':        badge.classList.add('midday'); badge.textContent = 'PREMARKET'; break;
+    case 'late':             badge.classList.add('midday'); badge.textContent = 'LATE (NO SIGNALS)'; break;
+    default:                 badge.classList.add('closed'); badge.textContent = 'CLOSED';
+  }
+}
+
+setInterval(updateClocks, 1000);
+updateClocks();
+
+// ----- API call rate tracking -----
+function trackApiCall() {
+  const now = Date.now();
+  state.callTimestamps.push(now);
+  state.callTimestamps = state.callTimestamps.filter(ts => now - ts < 60000);
+  state.apiCalls++;
+  state.apiCallsThisMinute = state.callTimestamps.length;
+  document.getElementById('stat-calls').textContent = state.apiCalls;
+  document.getElementById('rate-info').textContent =
+    `Rate: ${state.apiCallsThisMinute}/60 per min`;
+}
+
+async function finnhubCall(endpoint, params) {
+  if (state.apiCallsThisMinute >= 58) {
+    throw new Error('Approaching rate limit — pausing');
+  }
+  const url = new URL(`https://finnhub.io/api/v1/${endpoint}`);
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  url.searchParams.set('token', state.apiKey);
+
+  trackApiCall();
+  const r = await fetch(url.toString());
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('Invalid API key');
+    if (r.status === 429) throw new Error('Rate limited by Finnhub');
+    throw new Error(`HTTP ${r.status}`);
+  }
+  return r.json();
+}
+
+// ----- EMA / VWAP / RelVol calculations -----
+function ema(values, period) {
+  if (values.length === 0) return [];
+  const k = 2 / (period + 1);
+  const out = [values[0]];
+  for (let i = 1; i < values.length; i++) {
+    out.push(values[i] * k + out[i - 1] * (1 - k));
+  }
+  return out;
+}
+
+function sma(values, period) {
+  const out = new Array(values.length).fill(null);
+  for (let i = period - 1; i < values.length; i++) {
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += values[j];
+    out[i] = sum / period;
+  }
+  return out;
+}
+
+function computeVwap(highs, lows, closes, volumes) {
+  const out = [];
+  let cumPV = 0, cumV = 0;
+  for (let i = 0; i < closes.length; i++) {
+    const tp = (highs[i] + lows[i] + closes[i]) / 3;
+    cumPV += tp * volumes[i];
+    cumV  += volumes[i];
+    out.push(cumV > 0 ? cumPV / cumV : closes[i]);
+  }
+  return out;
+}
+
+// ----- Signal evaluation per ticker -----
+function evaluateSignal(candles) {
+  // candles: { c: closes[], h: highs[], l: lows[], o: opens[], v: volumes[], t: timestamps[] }
+  if (!candles || !candles.c || candles.c.length < 25) {
+    return { signal: 'none', reason: 'insufficient data' };
+  }
+
+  const { c, h, l, o, v } = candles;
+  const n = c.length;
+  const ema9  = ema(c, 9);
+  const ema20 = ema(c, 20);
+  const vwap  = computeVwap(h, l, c, v);
+  const volSma20 = sma(v, 20);
+
+  const i = n - 1; // current bar
+  const last = {
+    close: c[i], open: o[i], high: h[i], low: l[i], vol: v[i],
+    ema9: ema9[i], ema20: ema20[i], vwap: vwap[i], avgVol: volSma20[i],
+  };
+
+  const relVol = last.avgVol ? last.vol / last.avgVol : 0;
+  const distToEma9Pct = ((last.close - last.ema9) / last.ema9) * 100;
+
+  // Find most recent pullback bar within window
+  let pbBarLong = -1, pbBarShort = -1;
+  let pbLowVol = null, pbHighVol = null;
+  let pbLow = null, pbHigh = null;
+
+  const windowSize = state.config.pullbackBars;
+  // Walk back over the prior bars (excluding current)
+  for (let j = i - 1; j >= Math.max(0, i - windowSize - 5); j--) {
+    if (pbBarLong < 0 && l[j] <= ema9[j] && c[j] >= ema9[j] * 0.998) {
+      pbBarLong = j;
+      pbLowVol = v[j];
+      pbLow = l[j];
+    }
+    if (pbBarShort < 0 && h[j] >= ema9[j] && c[j] <= ema9[j] * 1.002) {
+      pbBarShort = j;
+      pbHighVol = v[j];
+      pbHigh = h[j];
+    }
+    if (pbBarLong >= 0 && pbBarShort >= 0) break;
+  }
+
+  const barsSincePbLong  = pbBarLong  >= 0 ? i - pbBarLong  : null;
+  const barsSincePbShort = pbBarShort >= 0 ? i - pbBarShort : null;
+
+  // Reclaim conditions (close back across 9 EMA + clear prior bar)
+  const reclaimLong  = last.close > last.ema9 && last.close > h[i - 1];
+  const reclaimShort = last.close < last.ema9 && last.close < l[i - 1];
+
+  // Filter checks
+  const trendUpOK   = state.config.filterTrend ? last.ema9 > last.ema20 : true;
+  const trendDnOK   = state.config.filterTrend ? last.ema9 < last.ema20 : true;
+  const vwapUpOK    = state.config.filterVwap  ? last.close > last.vwap  : true;
+  const vwapDnOK    = state.config.filterVwap  ? last.close < last.vwap  : true;
+  const relVolOK    = relVol >= state.config.relvolMin;
+  const priceOK     = last.close >= state.config.minPrice;
+  const timeOK      = state.config.filterTime ? isInActiveHours() : true;
+
+  const volPatLong  = pbLowVol  != null && last.avgVol && pbLowVol  < last.avgVol && last.vol > last.avgVol;
+  const volPatShort = pbHighVol != null && last.avgVol && pbHighVol < last.avgVol && last.vol > last.avgVol;
+
+  const inWindowLong  = barsSincePbLong  != null && barsSincePbLong  > 0 && barsSincePbLong  <= windowSize;
+  const inWindowShort = barsSincePbShort != null && barsSincePbShort > 0 && barsSincePbShort <= windowSize;
+
+  let signal = 'none';
+  let stop = null;
+  let pbBars = null;
+
+  if (priceOK && timeOK && relVolOK) {
+    if (reclaimLong && inWindowLong && trendUpOK && vwapUpOK && volPatLong) {
+      signal = 'long';
+      stop = pbLow;
+      pbBars = barsSincePbLong;
+    } else if (reclaimShort && inWindowShort && trendDnOK && vwapDnOK && volPatShort) {
+      signal = 'short';
+      stop = pbHigh;
+      pbBars = barsSincePbShort;
+    } else if (inWindowLong && trendUpOK && vwapUpOK) {
+      signal = 'watch-long';  // pulled back, awaiting reclaim
+      pbBars = barsSincePbLong;
+      stop = pbLow;
+    } else if (inWindowShort && trendDnOK && vwapDnOK) {
+      signal = 'watch-short';
+      pbBars = barsSincePbShort;
+      stop = pbHigh;
+    }
+  }
+
+  const risk = (signal === 'long' || signal === 'short') && stop
+    ? Math.abs(last.close - stop) / last.close * 100 : null;
+
+  return {
+    signal,
+    price: last.close,
+    ema9: last.ema9,
+    ema20: last.ema20,
+    vwap: last.vwap,
+    relVol,
+    distToEma9Pct,
+    trendUp: last.ema9 > last.ema20,
+    aboveVwap: last.close > last.vwap,
+    volPatternOK: signal.includes('long') ? volPatLong : signal.includes('short') ? volPatShort : null,
+    stop, risk, pbBars,
+    avgVol: last.avgVol,
+    lastVol: last.vol,
+  };
+}
+
+// ----- Per-ticker scan -----
+async function scanTicker(symbol) {
+  try {
+    // Get 1-minute candles for today (extended ~2 hrs back for EMA/VWAP warmup)
+    const now = Math.floor(Date.now() / 1000);
+    const threeHoursAgo = now - 3 * 60 * 60;
+
+    const [candles, quote] = await Promise.all([
+      finnhubCall('stock/candle', { symbol, resolution: '1', from: threeHoursAgo, to: now }),
+      finnhubCall('quote', { symbol }),
+    ]);
+
+    if (candles.s !== 'ok' || !candles.c || candles.c.length === 0) {
+      return { ticker: symbol, signal: 'none', error: 'no data', changePct: null };
+    }
+
+    const result = evaluateSignal(candles);
+    const changePct = quote.pc ? ((quote.c - quote.pc) / quote.pc) * 100 : null;
+
+    return { ticker: symbol, ...result, changePct };
+  } catch (err) {
+    return { ticker: symbol, signal: 'none', error: err.message, changePct: null };
+  }
+}
+
+// ----- Main scan loop -----
+async function runScan() {
+  if (state.scanning) return;
+  if (!state.apiKey) { showApiKeyModal(); return; }
+
+  readConfigFromUI();
+
+  const tickers = state.config.watchlist
+    .split(/[,\s]+/)
+    .map(t => t.trim().toUpperCase())
+    .filter(Boolean)
+    .slice(0, 15);
+
+  if (tickers.length === 0) { toast('Add tickers to watchlist first', 'error'); return; }
+
+  state.scanning = true;
+  setStatus('Scanning…', 'warn');
+
+  const results = [];
+  // Sequential to respect rate limit, with brief delay
+  for (const t of tickers) {
+    const r = await scanTicker(t);
+    results.push(r);
+    await new Promise(res => setTimeout(res, 300));
+  }
+
+  state.results = results;
+  state.scanning = false;
+  renderResults();
+  detectNewSignals();
+  document.getElementById('stat-last').textContent = new Date().toLocaleTimeString('en-US', { hour12: false });
+  setStatus('Connected · Last scan ' + new Date().toLocaleTimeString('en-US', { hour12: false }), 'ok');
+}
+
+function detectNewSignals() {
+  const currentSignals = new Set();
+  state.results.forEach(r => {
+    if (r.signal === 'long' || r.signal === 'short') {
+      const key = `${r.ticker}-${r.signal}`;
+      currentSignals.add(key);
+      if (!state.lastSignals.has(key)) {
+        notifySignal(r);
+      }
+    }
+  });
+  state.lastSignals = currentSignals;
+}
+
+function notifySignal(r) {
+  const dir = r.signal.toUpperCase();
+  toast(`${dir} SIGNAL: ${r.ticker} @ ${r.price.toFixed(2)} | Stop ${r.stop?.toFixed(2)}`,
+    r.signal === 'long' ? 'success' : 'error');
+  if (state.config.alertSound) playAlert(r.signal);
+  // Browser notification
+  if (Notification.permission === 'granted') {
+    new Notification(`${dir} ${r.ticker}`, {
+      body: `Price ${r.price.toFixed(2)} | Stop ${r.stop?.toFixed(2)} | RelVol ${r.relVol.toFixed(2)}x`,
+    });
+  }
+}
+
+function playAlert(direction) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = direction === 'long' ? 880 : 440;
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.4);
+  } catch(e) {/*ignore*/}
+}
+
+// ----- Rendering -----
+function renderResults() {
+  const tbody = document.getElementById('scanner-body');
+  const table = document.getElementById('scanner-table');
+  const empty = document.getElementById('empty-state');
+
+  if (!state.results.length) {
+    table.style.display = 'none';
+    empty.style.display = 'flex';
+    return;
+  }
+
+  empty.style.display = 'none';
+  table.style.display = 'table';
+
+  const sorted = [...state.results].sort((a, b) => {
+    const sortKey = state.sortBy;
+    let av, bv;
+    if (sortKey === 'signal') {
+      const order = { 'long': 4, 'short': 3, 'watch-long': 2, 'watch-short': 1, 'none': 0 };
+      av = order[a.signal] ?? 0;
+      bv = order[b.signal] ?? 0;
+    } else if (sortKey === 'ticker') {
+      av = a.ticker; bv = b.ticker;
+    } else {
+      av = a[sortKey] ?? -Infinity;
+      bv = b[sortKey] ?? -Infinity;
+    }
+    if (av < bv) return state.sortDir === 'asc' ? -1 : 1;
+    if (av > bv) return state.sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  tbody.innerHTML = sorted.map(r => {
+    if (r.error) {
+      return `<tr>
+        <td><span class="signal-cell none">ERR</span></td>
+        <td class="ticker">${r.ticker}</td>
+        <td colspan="12" style="color:var(--text-dim); font-size:11px;">${r.error}</td>
+      </tr>`;
+    }
+
+    const cls = r.signal === 'long' ? 'signal-long' :
+                r.signal === 'short' ? 'signal-short' : '';
+    const sigCls = r.signal === 'long' ? 'long' :
+                   r.signal === 'short' ? 'short' :
+                   r.signal.startsWith('watch') ? 'watch' : 'none';
+    const sigLabel = r.signal === 'long' ? 'LONG' :
+                     r.signal === 'short' ? 'SHORT' :
+                     r.signal === 'watch-long' ? 'SETUP↑' :
+                     r.signal === 'watch-short' ? 'SETUP↓' : '—';
+
+    const relVolPct = Math.min(100, (r.relVol / 5) * 100);
+    const relVolCls = r.relVol >= state.config.relvolMin ? 'hot' : 'cold';
+
+    const chgColor = r.changePct == null ? '' :
+      r.changePct > 0 ? 'style="color:var(--long)"' : 'style="color:var(--short)"';
+
+    const tvUrl = `https://www.tradingview.com/chart/?symbol=${r.ticker}&interval=1`;
+
+    return `<tr class="${cls}">
+      <td><span class="signal-cell ${sigCls}">${sigLabel}</span></td>
+      <td class="ticker"><a href="${tvUrl}" target="_blank">${r.ticker}</a></td>
+      <td class="numeric">${r.price?.toFixed(2) ?? '—'}</td>
+      <td class="numeric" ${chgColor}>${r.changePct == null ? '—' : (r.changePct >= 0 ? '+' : '') + r.changePct.toFixed(2) + '%'}</td>
+      <td class="numeric">
+        <span class="relvol-bar ${relVolCls}" style="--w:${relVolPct}%"></span>${r.relVol?.toFixed(2) ?? '—'}x
+      </td>
+      <td class="numeric">${r.ema9?.toFixed(2) ?? '—'}</td>
+      <td class="numeric">${r.vwap?.toFixed(2) ?? '—'}</td>
+      <td class="numeric ${r.distToEma9Pct >= 0 ? 'check' : 'cross'}">${r.distToEma9Pct == null ? '—' : (r.distToEma9Pct >= 0 ? '+' : '') + r.distToEma9Pct.toFixed(2) + '%'}</td>
+      <td>${r.trendUp ? '<span class="check">UP</span>' : '<span class="cross">DN</span>'}</td>
+      <td>${r.aboveVwap ? '<span class="check">↑</span>' : '<span class="cross">↓</span>'}</td>
+      <td>${r.volPatternOK === true ? '<span class="check">✓</span>' : r.volPatternOK === false ? '<span class="cross">✗</span>' : '<span class="dash">—</span>'}</td>
+      <td class="numeric">${r.stop?.toFixed(2) ?? '—'}</td>
+      <td class="numeric">${r.risk == null ? '—' : r.risk.toFixed(2) + '%'}</td>
+      <td class="numeric">${r.pbBars ?? '—'}</td>
+    </tr>`;
+  }).join('');
+
+  // Update stats
+  const longs  = state.results.filter(r => r.signal === 'long').length;
+  const shorts = state.results.filter(r => r.signal === 'short').length;
+  const watch  = state.results.filter(r => r.signal.startsWith('watch')).length;
+  document.getElementById('stat-total').textContent = state.results.length;
+  document.getElementById('stat-longs').textContent  = longs;
+  document.getElementById('stat-shorts').textContent = shorts;
+  document.getElementById('stat-watch').textContent  = watch;
+}
+
+// ----- Sorting -----
+document.querySelectorAll('th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sort;
+    if (state.sortBy === key) {
+      state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      state.sortBy = key;
+      state.sortDir = 'desc';
+    }
+    document.querySelectorAll('th[data-sort]').forEach(h => {
+      h.classList.remove('sorted', 'asc');
+    });
+    th.classList.add('sorted');
+    if (state.sortDir === 'asc') th.classList.add('asc');
+    renderResults();
+  });
+});
+
+// ----- Auto-refresh -----
+function startAutoRefresh() {
+  stopAutoRefresh();
+  if (state.config.refreshInterval > 0) {
+    state.refreshTimer = setInterval(runScan, state.config.refreshInterval * 1000);
+    document.getElementById('btn-stop').style.display = 'block';
+  }
+}
+function stopAutoRefresh() {
+  if (state.refreshTimer) {
+    clearInterval(state.refreshTimer);
+    state.refreshTimer = null;
+  }
+  document.getElementById('btn-stop').style.display = 'none';
+}
+
+// ----- Modal -----
+function showApiKeyModal() {
+  document.getElementById('modal-key').classList.add('show');
+}
+function hideApiKeyModal() {
+  document.getElementById('modal-key').classList.remove('show');
+}
+
+document.getElementById('modal-save-key').addEventListener('click', () => {
+  const k = document.getElementById('modal-key-input').value.trim();
+  if (!k) { toast('Enter a valid key', 'error'); return; }
+  state.apiKey = k;
+  document.getElementById('api-key').value = k;
+  saveConfig();
+  hideApiKeyModal();
+  toast('Key saved', 'success');
+});
+document.getElementById('modal-close-key').addEventListener('click', hideApiKeyModal);
+
+// ----- Buttons -----
+document.getElementById('btn-save-key').addEventListener('click', () => {
+  const k = document.getElementById('api-key').value.trim();
+  if (!k) { toast('Enter your Finnhub API key', 'error'); return; }
+  state.apiKey = k;
+  saveConfig();
+  toast('Key saved to browser', 'success');
+});
+
+document.getElementById('btn-scan').addEventListener('click', async () => {
+  await runScan();
+  if (state.config.refreshInterval > 0) startAutoRefresh();
+});
+
+document.getElementById('btn-stop').addEventListener('click', () => {
+  stopAutoRefresh();
+  toast('Auto-refresh stopped');
+  setStatus('Connected · Idle', 'ok');
+});
+
+// Persist UI changes immediately on blur
+['watchlist','relvol-min','min-price','pullback-bars','refresh-interval'].forEach(id => {
+  document.getElementById(id).addEventListener('change', readConfigFromUI);
+});
+['filter-vwap','filter-trend','filter-time','alert-sound'].forEach(id => {
+  document.getElementById(id).addEventListener('change', readConfigFromUI);
+});
+
+// Request notification permission lazily on first scan
+document.getElementById('btn-scan').addEventListener('click', () => {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}, { once: true });
+
+// ----- Init -----
+loadConfig();
+if (!state.apiKey) {
+  showApiKeyModal();
+  setStatus('No API key', 'error');
+} else {
+  setStatus('Connected · Idle', 'ok');
+}
+</script>
+</body>
+</html>

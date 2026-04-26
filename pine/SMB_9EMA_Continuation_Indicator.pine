@@ -1,0 +1,130 @@
+//@version=5
+indicator("SMB 9 EMA Continuation", shorttitle="SMB 9EMA", overlay=true, max_labels_count=500)
+
+// ============================================================================
+// SMB Capital 9 EMA Continuation Strategy
+// ============================================================================
+// Logic: After a pullback to the 9 EMA, enter when price reclaims it with
+// confirmation. Filters enforce trend, volume, VWAP bias, and time-of-day.
+// ============================================================================
+
+// ----- Inputs -----
+emaFastLen   = input.int(9,  "Fast EMA",        minval=2, group="Moving Averages")
+emaSlowLen   = input.int(20, "Slow EMA (trend filter)", minval=2, group="Moving Averages")
+relVolLen    = input.int(20, "RelVol Lookback (bars)",  minval=5, group="Volume")
+relVolMult   = input.float(2.0, "RelVol Threshold (x avg)", minval=1.0, step=0.1, group="Volume")
+pullbackBars = input.int(5, "Max bars between pullback and reclaim", minval=1, maxval=10, group="Pullback Logic")
+
+useVwapFilter = input.bool(true,  "Require VWAP bias",      group="Filters")
+useTrendFilter= input.bool(true,  "Require 9>20 EMA trend", group="Filters")
+useVolPattern = input.bool(true,  "Require vol contraction then expansion", group="Filters")
+useTimeFilter = input.bool(true,  "Restrict to active hours", group="Filters")
+
+showLong  = input.bool(true, "Show Long signals",  group="Display")
+showShort = input.bool(true, "Show Short signals", group="Display")
+showStops = input.bool(true, "Plot stop levels",   group="Display")
+
+// ----- Core calculations -----
+emaFast = ta.ema(close, emaFastLen)
+emaSlow = ta.ema(close, emaSlowLen)
+vwapVal = ta.vwap(hlc3)
+
+avgVol  = ta.sma(volume, relVolLen)
+relVol  = volume / avgVol
+
+// ----- Time-of-day filter (US Eastern: 9:30-11:00 AM and 2:00-3:45 PM) -----
+// Pine evaluates session in exchange time, which for US equities = ET
+inMorningSession = not na(time(timeframe.period, "0930-1100", "America/New_York"))
+inAfternoonSession = not na(time(timeframe.period, "1400-1545", "America/New_York"))
+inActiveHours = inMorningSession or inAfternoonSession
+timeOK = useTimeFilter ? inActiveHours : true
+
+// ----- Pullback detection -----
+// A "pullback bar" is one where the low touches or pierces the 9 EMA
+pullbackLong  = low  <= emaFast and close >= emaFast * 0.998  // wick touches, close near/above
+pullbackShort = high >= emaFast and close <= emaFast * 1.002
+
+// Track recent pullback within lookback window
+var int   lastPullbackLongBar  = na
+var int   lastPullbackShortBar = na
+var float lastPullbackLowVol   = na
+var float lastPullbackHighVol  = na
+var float lastPullbackLow      = na
+var float lastPullbackHigh     = na
+
+if pullbackLong
+    lastPullbackLongBar  := bar_index
+    lastPullbackLowVol   := volume
+    lastPullbackLow      := low
+
+if pullbackShort
+    lastPullbackShortBar := bar_index
+    lastPullbackHighVol  := volume
+    lastPullbackHigh     := high
+
+barsSincePullbackLong  = na(lastPullbackLongBar)  ? na : bar_index - lastPullbackLongBar
+barsSincePullbackShort = na(lastPullbackShortBar) ? na : bar_index - lastPullbackShortBar
+
+// ----- Reclaim trigger -----
+// Close back above 9 EMA AND above previous bar's high (confirmation candle)
+reclaimLong  = close > emaFast and close > high[1]
+reclaimShort = close < emaFast and close < low[1]
+
+// ----- Filter checks -----
+trendOKLong   = useTrendFilter ? emaFast > emaSlow : true
+trendOKShort  = useTrendFilter ? emaFast < emaSlow : true
+
+vwapOKLong    = useVwapFilter  ? close > vwapVal : true
+vwapOKShort   = useVwapFilter  ? close < vwapVal : true
+
+relVolOK      = relVol >= relVolMult
+
+// Volume pattern: pullback bar had below-average vol, current bar has above-average
+volPatternLong  = useVolPattern ? (not na(lastPullbackLowVol) and lastPullbackLowVol < avgVol and volume > avgVol) : true
+volPatternShort = useVolPattern ? (not na(lastPullbackHighVol) and lastPullbackHighVol < avgVol and volume > avgVol) : true
+
+// ----- Signal assembly -----
+withinWindowLong  = not na(barsSincePullbackLong)  and barsSincePullbackLong  <= pullbackBars and barsSincePullbackLong  > 0
+withinWindowShort = not na(barsSincePullbackShort) and barsSincePullbackShort <= pullbackBars and barsSincePullbackShort > 0
+
+longSignal  = showLong  and reclaimLong  and withinWindowLong  and trendOKLong  and vwapOKLong  and relVolOK and volPatternLong  and timeOK
+shortSignal = showShort and reclaimShort and withinWindowShort and trendOKShort and vwapOKShort and relVolOK and volPatternShort and timeOK
+
+// ----- Stop levels -----
+longStop  = longSignal  ? lastPullbackLow  : na
+shortStop = shortSignal ? lastPullbackHigh : na
+
+// ----- Plotting -----
+plot(emaFast, "9 EMA",  color=color.new(color.orange, 0), linewidth=2)
+plot(emaSlow, "20 EMA", color=color.new(color.blue,   0), linewidth=1)
+plot(vwapVal, "VWAP",   color=color.new(color.purple, 0), linewidth=1)
+
+plotshape(longSignal,  title="Long Entry",  location=location.belowbar, style=shape.triangleup,   size=size.small, color=color.new(color.green, 0), text="L")
+plotshape(shortSignal, title="Short Entry", location=location.abovebar, style=shape.triangledown, size=size.small, color=color.new(color.red, 0),   text="S")
+
+plot(showStops ? longStop  : na, "Long Stop",  color=color.new(color.green, 0), style=plot.style_circles, linewidth=2, offset=0)
+plot(showStops ? shortStop : na, "Short Stop", color=color.new(color.red, 0),   style=plot.style_circles, linewidth=2, offset=0)
+
+// Optional: highlight pullback bars subtly
+bgcolor(pullbackLong  and trendOKLong  and vwapOKLong  ? color.new(color.green, 92) : na, title="Pullback zone (long)")
+bgcolor(pullbackShort and trendOKShort and vwapOKShort ? color.new(color.red, 92)   : na, title="Pullback zone (short)")
+
+// ----- Alerts -----
+alertcondition(longSignal,  title="9EMA Long Entry",  message="SMB 9EMA LONG: {{ticker}} reclaimed 9EMA at {{close}} | Stop below pullback low")
+alertcondition(shortSignal, title="9EMA Short Entry", message="SMB 9EMA SHORT: {{ticker}} lost 9EMA at {{close}} | Stop above pullback high")
+
+// ----- Info table -----
+var table info = table.new(position.top_right, 2, 6, bgcolor=color.new(color.black, 80), border_width=1)
+if barstate.islast
+    table.cell(info, 0, 0, "RelVol",     text_color=color.white, text_size=size.small)
+    table.cell(info, 1, 0, str.tostring(relVol, "#.##") + "x", text_color=relVol >= relVolMult ? color.lime : color.gray, text_size=size.small)
+    table.cell(info, 0, 1, "Trend",      text_color=color.white, text_size=size.small)
+    table.cell(info, 1, 1, emaFast > emaSlow ? "UP" : "DOWN", text_color=emaFast > emaSlow ? color.lime : color.red, text_size=size.small)
+    table.cell(info, 0, 2, "VWAP",       text_color=color.white, text_size=size.small)
+    table.cell(info, 1, 2, close > vwapVal ? "ABOVE" : "BELOW", text_color=close > vwapVal ? color.lime : color.red, text_size=size.small)
+    table.cell(info, 0, 3, "Session",    text_color=color.white, text_size=size.small)
+    table.cell(info, 1, 3, inActiveHours ? "ACTIVE" : "OFF", text_color=inActiveHours ? color.lime : color.gray, text_size=size.small)
+    table.cell(info, 0, 4, "Last PB Bar (L)", text_color=color.white, text_size=size.small)
+    table.cell(info, 1, 4, na(barsSincePullbackLong) ? "-" : str.tostring(barsSincePullbackLong) + " ago", text_color=color.white, text_size=size.small)
+    table.cell(info, 0, 5, "Last PB Bar (S)", text_color=color.white, text_size=size.small)
+    table.cell(info, 1, 5, na(barsSincePullbackShort) ? "-" : str.tostring(barsSincePullbackShort) + " ago", text_color=color.white, text_size=size.small)
