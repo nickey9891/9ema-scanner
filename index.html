@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -478,11 +479,248 @@ footer .right { margin-left: auto; }
 ::-webkit-scrollbar-track { background: var(--bg-primary); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 0; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }
+
+/* ============ HAMBURGER MENU TOGGLE (mobile only) ============ */
+.menu-toggle {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--border-bright);
+  color: var(--text-primary);
+  width: 36px;
+  height: 36px;
+  border-radius: 2px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+}
+.menu-toggle span {
+  display: block;
+  width: 16px;
+  height: 2px;
+  background: var(--text-primary);
+  transition: transform 0.2s, opacity 0.2s;
+}
+.aside-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 49;
+}
+
+/* Expandable row details (visible only when expanded on mobile) */
+.row-details {
+  display: none;
+}
+tr.expanded .row-details {
+  display: table-row;
+  background: var(--bg-tertiary);
+}
+.row-details td {
+  padding: 14px 16px !important;
+  border-bottom: 1px solid var(--border);
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  font-size: 11px;
+}
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+.detail-label {
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+}
+.detail-value {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.detail-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+}
+.detail-actions a {
+  flex: 1;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-bright);
+  color: var(--text-primary);
+  padding: 10px;
+  text-align: center;
+  text-decoration: none;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-radius: 2px;
+}
+.detail-actions a:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Mobile-only column visibility classes */
+.mobile-hide { /* visible by default; hidden on mobile */ }
+.expand-cell {
+  display: none;
+  width: 24px;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+}
+tr.expanded .expand-cell { transform: rotate(90deg); color: var(--accent); }
+
+/* ============ MOBILE BREAKPOINT (≤768px) ============ */
+@media (max-width: 768px) {
+  html, body {
+    font-size: 14px;
+    overflow: auto;
+  }
+  body {
+    height: auto;
+    min-height: 100vh;
+    background-size: 30px 30px;
+    grid-template-rows: 52px 1fr auto;
+  }
+
+  /* HEADER — compact */
+  header {
+    padding: 0 12px;
+    gap: 10px;
+  }
+  .logo { font-size: 15px; }
+  .logo::after { width: 6px; height: 6px; margin-left: 6px; }
+  .session-clock { gap: 8px; margin-left: auto; }
+  .clock-item:not(.session-only) { display: none; } /* hide local clock to save space */
+  .session-clock .clock-item:first-child .clock-label { display: none; } /* show ET time only */
+  .session-badge {
+    padding: 3px 7px;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+  }
+  .menu-toggle { display: flex; }
+
+  /* MAIN — drop two-column layout */
+  main {
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
+  /* SIDEBAR — slide in from left as drawer */
+  aside {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 85vw;
+    max-width: 320px;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+    padding: 16px;
+    border-right: 1px solid var(--border-bright);
+  }
+  aside.open { transform: translateX(0); }
+  .aside-overlay.show { display: block; }
+
+  /* CONTENT */
+  .content { overflow: visible; }
+  .table-wrap {
+    overflow-x: hidden;
+    overflow-y: visible;
+    padding: 0 8px 80px;
+  }
+
+  /* STATS BAR — 2 rows of 3 */
+  .stats-bar {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    padding: 8px 12px;
+    row-gap: 8px;
+  }
+  .stat {
+    padding: 4px 8px;
+    border-right: 1px solid var(--border);
+    border-bottom: none;
+  }
+  .stat:nth-child(3n) { border-right: none; }
+  .stat:nth-child(-n+3) { border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  .stat:nth-child(n+4) { padding-top: 8px; }
+  .stat-value { font-size: 16px; }
+  .stat-label { font-size: 8px; }
+  /* Hide last 2 less-critical stats on mobile to keep clean 2x2 grid */
+  .stat:nth-child(5), .stat:nth-child(6) { display: none; }
+  .stats-bar { grid-template-columns: repeat(2, 1fr); }
+  .stat:nth-child(2n) { border-right: none; }
+  .stat:nth-child(2n+1) { border-right: 1px solid var(--border); }
+  .stat:nth-child(-n+2) { border-bottom: 1px solid var(--border); }
+
+  /* TABLE — collapse to essential columns only */
+  table.scanner thead th.mobile-hide,
+  table.scanner tbody td.mobile-hide { display: none; }
+  table.scanner th.expand-cell-header,
+  table.scanner td.expand-cell { display: table-cell; }
+
+  table.scanner th, table.scanner td {
+    padding: 12px 6px;
+    font-size: 12px;
+  }
+  table.scanner th { font-size: 9px; }
+  .ticker { font-size: 14px; }
+  .signal-cell { font-size: 9px; padding: 3px 6px; }
+  .relvol-bar { width: 30px; }
+
+  /* FOOTER */
+  footer {
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    height: auto;
+    font-size: 9px;
+    gap: 8px;
+  }
+  footer .right { width: 100%; text-align: center; opacity: 0.6; }
+
+  /* MODAL — full width on mobile */
+  .modal { width: calc(100vw - 24px); padding: 18px; }
+
+  /* Toast — bottom-centered */
+  .toast {
+    bottom: 16px;
+    right: 12px;
+    left: 12px;
+    max-width: none;
+  }
+
+  /* Make all buttons more tappable */
+  .btn { padding: 12px; font-size: 12px; }
+  .field input, .field select, .field textarea { padding: 10px; font-size: 13px; }
+  .checkbox-row { padding: 6px 0; font-size: 12px; }
+  .checkbox-row input[type="checkbox"] { width: 18px; height: 18px; }
+}
+
+/* Prevent iOS zoom on input focus */
+@media (max-width: 768px) {
+  input[type="text"], input[type="password"], input[type="number"],
+  textarea, select { font-size: 16px !important; }
+}
 </style>
 </head>
 <body>
 
 <header>
+  <button class="menu-toggle" id="menu-toggle" aria-label="Open menu">
+    <span></span><span></span><span></span>
+  </button>
   <div class="logo">9ema.scanner</div>
 
   <div class="session-clock">
@@ -499,6 +737,7 @@ footer .right { margin-left: auto; }
 </header>
 
 <main>
+  <div class="aside-overlay" id="aside-overlay"></div>
   <aside>
     <h2>Connection</h2>
     <div class="field">
@@ -598,20 +837,21 @@ footer .right { margin-left: auto; }
       <table class="scanner" id="scanner-table" style="display:none;">
         <thead>
           <tr>
+            <th class="expand-cell-header" style="display:none;"></th>
             <th data-sort="signal" class="sorted">Signal</th>
             <th data-sort="ticker">Ticker</th>
             <th data-sort="price"  class="numeric">Price</th>
-            <th data-sort="change" class="numeric">% Chg</th>
+            <th data-sort="change" class="numeric mobile-hide">% Chg</th>
             <th data-sort="relvol" class="numeric">RelVol</th>
-            <th data-sort="ema9"   class="numeric">9 EMA</th>
-            <th data-sort="vwap"   class="numeric">VWAP</th>
-            <th data-sort="dist"   class="numeric">Δ to 9EMA</th>
-            <th>Trend</th>
-            <th>VWAP</th>
-            <th>Vol Pat.</th>
+            <th data-sort="ema9"   class="numeric mobile-hide">9 EMA</th>
+            <th data-sort="vwap"   class="numeric mobile-hide">VWAP</th>
+            <th data-sort="dist"   class="numeric mobile-hide">Δ to 9EMA</th>
+            <th class="mobile-hide">Trend</th>
+            <th class="mobile-hide">VWAP</th>
+            <th class="mobile-hide">Vol Pat.</th>
             <th data-sort="stop"   class="numeric">Stop</th>
-            <th data-sort="risk"   class="numeric">Risk%</th>
-            <th data-sort="pbBars" class="numeric">PB Ago</th>
+            <th data-sort="risk"   class="numeric mobile-hide">Risk%</th>
+            <th data-sort="pbBars" class="numeric mobile-hide">PB Ago</th>
           </tr>
         </thead>
         <tbody id="scanner-body"></tbody>
@@ -1110,12 +1350,13 @@ function renderResults() {
     return 0;
   });
 
-  tbody.innerHTML = sorted.map(r => {
+  tbody.innerHTML = sorted.map((r, idx) => {
     if (r.error) {
       return `<tr>
+        <td class="expand-cell" style="display:none;"></td>
         <td><span class="signal-cell none">ERR</span></td>
         <td class="ticker">${r.ticker}</td>
-        <td colspan="12" style="color:var(--text-dim); font-size:11px;">${r.error}</td>
+        <td colspan="13" style="color:var(--text-dim); font-size:11px;">${r.error}</td>
       </tr>`;
     }
 
@@ -1136,24 +1377,45 @@ function renderResults() {
       r.changePct > 0 ? 'style="color:var(--long)"' : 'style="color:var(--short)"';
 
     const tvUrl = `https://www.tradingview.com/chart/?symbol=${r.ticker}&interval=1`;
+    const fmt = (v, suffix='') => v == null ? '—' : v.toFixed(2) + suffix;
 
-    return `<tr class="${cls}">
+    return `<tr class="${cls}" data-row="${idx}">
+      <td class="expand-cell" data-row="${idx}">▶</td>
       <td><span class="signal-cell ${sigCls}">${sigLabel}</span></td>
-      <td class="ticker"><a href="${tvUrl}" target="_blank">${r.ticker}</a></td>
+      <td class="ticker"><a href="${tvUrl}" target="_blank" onclick="event.stopPropagation()">${r.ticker}</a></td>
       <td class="numeric">${r.price?.toFixed(2) ?? '—'}</td>
-      <td class="numeric" ${chgColor}>${r.changePct == null ? '—' : (r.changePct >= 0 ? '+' : '') + r.changePct.toFixed(2) + '%'}</td>
+      <td class="numeric mobile-hide" ${chgColor}>${r.changePct == null ? '—' : (r.changePct >= 0 ? '+' : '') + r.changePct.toFixed(2) + '%'}</td>
       <td class="numeric">
         <span class="relvol-bar ${relVolCls}" style="--w:${relVolPct}%"></span>${r.relVol?.toFixed(2) ?? '—'}x
       </td>
-      <td class="numeric">${r.ema9?.toFixed(2) ?? '—'}</td>
-      <td class="numeric">${r.vwap?.toFixed(2) ?? '—'}</td>
-      <td class="numeric ${r.distToEma9Pct >= 0 ? 'check' : 'cross'}">${r.distToEma9Pct == null ? '—' : (r.distToEma9Pct >= 0 ? '+' : '') + r.distToEma9Pct.toFixed(2) + '%'}</td>
-      <td>${r.trendUp ? '<span class="check">UP</span>' : '<span class="cross">DN</span>'}</td>
-      <td>${r.aboveVwap ? '<span class="check">↑</span>' : '<span class="cross">↓</span>'}</td>
-      <td>${r.volPatternOK === true ? '<span class="check">✓</span>' : r.volPatternOK === false ? '<span class="cross">✗</span>' : '<span class="dash">—</span>'}</td>
+      <td class="numeric mobile-hide">${r.ema9?.toFixed(2) ?? '—'}</td>
+      <td class="numeric mobile-hide">${r.vwap?.toFixed(2) ?? '—'}</td>
+      <td class="numeric mobile-hide ${r.distToEma9Pct >= 0 ? 'check' : 'cross'}">${r.distToEma9Pct == null ? '—' : (r.distToEma9Pct >= 0 ? '+' : '') + r.distToEma9Pct.toFixed(2) + '%'}</td>
+      <td class="mobile-hide">${r.trendUp ? '<span class="check">UP</span>' : '<span class="cross">DN</span>'}</td>
+      <td class="mobile-hide">${r.aboveVwap ? '<span class="check">↑</span>' : '<span class="cross">↓</span>'}</td>
+      <td class="mobile-hide">${r.volPatternOK === true ? '<span class="check">✓</span>' : r.volPatternOK === false ? '<span class="cross">✗</span>' : '<span class="dash">—</span>'}</td>
       <td class="numeric">${r.stop?.toFixed(2) ?? '—'}</td>
-      <td class="numeric">${r.risk == null ? '—' : r.risk.toFixed(2) + '%'}</td>
-      <td class="numeric">${r.pbBars ?? '—'}</td>
+      <td class="numeric mobile-hide">${r.risk == null ? '—' : r.risk.toFixed(2) + '%'}</td>
+      <td class="numeric mobile-hide">${r.pbBars ?? '—'}</td>
+    </tr>
+    <tr class="row-details" data-details="${idx}">
+      <td colspan="15">
+        <div class="detail-grid">
+          <div class="detail-row"><span class="detail-label">% Chg</span><span class="detail-value" ${chgColor}>${r.changePct == null ? '—' : (r.changePct >= 0 ? '+' : '') + r.changePct.toFixed(2) + '%'}</span></div>
+          <div class="detail-row"><span class="detail-label">9 EMA</span><span class="detail-value">${fmt(r.ema9)}</span></div>
+          <div class="detail-row"><span class="detail-label">VWAP</span><span class="detail-value">${fmt(r.vwap)}</span></div>
+          <div class="detail-row"><span class="detail-label">Δ to 9EMA</span><span class="detail-value">${r.distToEma9Pct == null ? '—' : (r.distToEma9Pct >= 0 ? '+' : '') + r.distToEma9Pct.toFixed(2) + '%'}</span></div>
+          <div class="detail-row"><span class="detail-label">Trend</span><span class="detail-value">${r.trendUp ? '↑ UP' : '↓ DOWN'}</span></div>
+          <div class="detail-row"><span class="detail-label">VWAP Bias</span><span class="detail-value">${r.aboveVwap ? '↑ ABOVE' : '↓ BELOW'}</span></div>
+          <div class="detail-row"><span class="detail-label">Vol Pattern</span><span class="detail-value">${r.volPatternOK === true ? '✓ OK' : r.volPatternOK === false ? '✗ FAIL' : '—'}</span></div>
+          <div class="detail-row"><span class="detail-label">Risk %</span><span class="detail-value">${r.risk == null ? '—' : r.risk.toFixed(2) + '%'}</span></div>
+          <div class="detail-row"><span class="detail-label">PB Bars Ago</span><span class="detail-value">${r.pbBars ?? '—'}</span></div>
+          <div class="detail-row"><span class="detail-label">Stop</span><span class="detail-value">${fmt(r.stop)}</span></div>
+        </div>
+        <div class="detail-actions">
+          <a href="${tvUrl}" target="_blank">Open chart →</a>
+        </div>
+      </td>
     </tr>`;
   }).join('');
 
@@ -1247,6 +1509,47 @@ document.getElementById('btn-stop').addEventListener('click', () => {
 });
 ['filter-vwap','filter-trend','filter-time','alert-sound'].forEach(id => {
   document.getElementById(id).addEventListener('change', readConfigFromUI);
+});
+
+// ----- Mobile hamburger menu -----
+const aside = document.querySelector('aside');
+const overlay = document.getElementById('aside-overlay');
+const menuToggle = document.getElementById('menu-toggle');
+function openMenu() {
+  aside.classList.add('open');
+  overlay.classList.add('show');
+}
+function closeMenu() {
+  aside.classList.remove('open');
+  overlay.classList.remove('show');
+}
+menuToggle.addEventListener('click', () => {
+  aside.classList.contains('open') ? closeMenu() : openMenu();
+});
+overlay.addEventListener('click', closeMenu);
+// Close drawer when running scan or stopping (so user sees results)
+document.getElementById('btn-scan').addEventListener('click', () => {
+  if (window.matchMedia('(max-width: 768px)').matches) closeMenu();
+});
+
+// ----- Row expansion (mobile detail view) -----
+document.getElementById('scanner-body').addEventListener('click', (e) => {
+  // Only expand on mobile
+  if (!window.matchMedia('(max-width: 768px)').matches) return;
+  // Don't expand when tapping ticker link
+  if (e.target.tagName === 'A') return;
+  const row = e.target.closest('tr[data-row]');
+  if (!row) return;
+  const idx = row.dataset.row;
+  const detail = document.querySelector(`tr[data-details="${idx}"]`);
+  row.classList.toggle('expanded');
+  if (detail) {
+    if (row.classList.contains('expanded')) {
+      detail.style.display = 'table-row';
+    } else {
+      detail.style.display = 'none';
+    }
+  }
 });
 
 // Request notification permission lazily on first scan
